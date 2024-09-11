@@ -1,1 +1,3 @@
-# Scripts_Projet_Clampage_DVE
+# Projet Clampage DVE - Compliance cérébrale 
+
+- Valentin Ghibaudo, Ayoub, Baptiste Balança
