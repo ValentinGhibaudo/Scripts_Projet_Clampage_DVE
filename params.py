@@ -1,33 +1,18 @@
-eeg_bipolar_montage_13 = ['C3-F3',
-                       'C3-P3',
-                       'P3-O1',
-                       'F4-C4',
-                       'C4-P4',
-                       'P4-O2',
-                       'Fz-Cz',
-                       'Cz-Pz',
-                       'C3-Cz',
-                       'Cz-C4',
-                       'C3-T7',
-                       'C4-T8'
-                       ]
+subs = ['Patient_2024_May_16__9_33_08_427295',
+#  'Patient_2024_May_8__9_51_19_328502',
+ 'Patient_2024_May_25__16_48_44_716049',
+ 'Patient_2024_May_25__16_09_03_881877',
+ 'Patient_2024_Jun_24__12_33_38_160174',
+ 'PatientData_1723890119868125'
+ ]
 
-eeg_bipolar_montage_10 = ['C3-F3',
-                       'C3-P3',
-                       'P3-O1',
-                       'F4-C4',
-                       'C4-P4',
-                       'P4-O2',
-                       'C3-T7',
-                       'C4-T8'
-                       ]
-
-impedance_fig_params = {
-    'threshold':50_000
-}
-
-impedance_mean_params = {
-}
+icp_chan_name = {'Patient_2024_May_16__9_33_08_427295':'P1',
+#  'Patient_2024_May_8__9_51_19_328502':'P1',
+ 'Patient_2024_May_25__16_48_44_716049':'P',
+ 'Patient_2024_May_25__16_09_03_881877':'P1',
+ 'Patient_2024_Jun_24__12_33_38_160174':'ICP', # P1 pas assez de temps
+ 'PatientData_1723890119868125':'ICP', # ICP waveforme devient bizarre vers 2024-08-18T11:55:33.924284
+ }
 
 resp_abp_spectro_params = {
     'srate':5,
