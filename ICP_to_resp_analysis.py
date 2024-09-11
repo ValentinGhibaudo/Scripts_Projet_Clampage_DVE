@@ -11,7 +11,7 @@ from tools import *
 from configuration import *
 from params_icp_to_resp import *
 from icp_rises import load_table_nory, format_window_dates
-from multi_projects_jobs import *
+from icp_jobs import *
 from stats_tools import stats_quantitative, auto_stats, auto_stats_summary, save_auto_stats_summary
 
 def interpolate_samples(data, data_times, time_vector, kind = 'linear'):
