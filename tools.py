@@ -12,44 +12,6 @@ from pycns import CnsReader
 import xmltodict
 import scipy
 
-def Kullback_Leibler_Distance(a, b):
-    a = np.asarray(a, dtype=float)
-    b = np.asarray(b, dtype=float)
-    return np.sum(np.where(a != 0, a * np.log(a / b), 0))
-
-def Shannon_Entropy(a):
-    a = np.asarray(a, dtype=float)
-    return - np.sum(a*np.log(a))
-
-def Modulation_Index(distrib, show=False, verbose=False):
-    distrib = np.asarray(distrib, dtype = float)
-    
-    if verbose:
-        if np.sum(distrib) != 1:
-            print(f'(!)  The sum of all bins is not 1 (sum = {round(np.sum(distrib), 2)})  (!)')
-        
-    N = distrib.size
-    uniform_distrib = np.ones(N) * (1/N)
-    mi = Kullback_Leibler_Distance(distrib, uniform_distrib) / np.log(N)
-    
-    if show:
-        bin_width_deg = 360 / N
-        
-        doubled_distrib = np.concatenate([distrib,distrib] )
-        x = np.arange(0, doubled_distrib.size*bin_width_deg, bin_width_deg)
-        fig, ax = plt.subplots(figsize = (8,4))
-        
-        doubled_uniform_distrib = np.concatenate([uniform_distrib,uniform_distrib] )
-        ax.scatter(x, doubled_uniform_distrib, s=2, color='r')
-        
-        ax.bar(x=x, height=doubled_distrib, width = bin_width_deg/1.1, align = 'edge')
-        ax.set_title(f'Modulation Index = {round(mi, 4)}')
-        ax.set_xlabel(f'Phase (Deg)')
-        ax.set_ylabel(f'Amplitude (Normalized)')
-        ax.set_xticks([0,360,720])
-
-    return mi
-
 def notch_filter(sig, srate, bandcut = (48,52), order = 4, ftype = 'butter', show = False, axis = -1):
 
     """
@@ -74,14 +36,6 @@ def notch_filter(sig, srate, bandcut = (48,52), order = 4, ftype = 'butter', sho
         plt.show()
 
     return filtered_sig
-
-
-def read_events(sub):
-    file = base_folder / 'raw_data' / sub / 'Events.xml'
-    with open(file, 'r', encoding='utf-8') as file: 
-        my_xml = file.read() 
-    my_dict = xmltodict.parse(my_xml)
-    return pd.DataFrame(my_dict['Events']['Event'])
 
 def get_patient_dates(patient):
     raw_folder = data_path / patient
@@ -114,11 +68,6 @@ def get_patient_ids():
     path = base_folder / 'tab_base_neuromonito.xlsx'
     return list(pd.read_excel(path)['ID_pseudo'])
     
-def get_patients_with_ecog():
-    path = base_folder / 'tab_base_neuromonito.xlsx'
-    df = pd.read_excel(path)
-    return df[df['ECoG'] != 0]['ID_pseudo'].values
-
 def iirfilt(sig, srate, lowcut=None, highcut=None, order = 4, ftype = 'butter', verbose = False, show = False, axis = -1):
 
     """
@@ -270,40 +219,6 @@ def get_wsize(srate, lowest_freq , n_cycles=5):
     nperseg = ( n_cycles / lowest_freq) * srate
     return int(nperseg)
 
-def spectre(sig, srate, lowest_freq, n_cycles = 5, nfft_factor = 1, axis = -1, scaling = 'spectrum', verbose = False):
-
-    """
-    Compute Power Spectral Density of the signal with Welch method
-
-    -----------------
-    Inputs =
-    - sig : Nd array with time in last dim
-    - srate : samping rate
-    - lowest_freq : Lowest frequency of interest, window sizes will be automatically computed based on this freq and set min number of cycle in window
-    - n_cycles : Minimum cycles of the lowest frequency in the window size (default = 5)
-    - nfft_factor : Factor of zero-padding (default = 1)
-    - verbose : if True, print informations about windows length (default = False)
-    - scaling : 'spectrum' or 'density' (cf scipy.signal.welch) (default = 'scaling')
-
-    Outputs = 
-    - f : frequency vector
-    - Pxx : Power Spectral Density vector (scaling = spectrum so unit = V**2)
-
-    """
-
-    nperseg = get_wsize(srate, lowest_freq, n_cycles)
-    nfft = int(nperseg * nfft_factor)
-    f, Pxx = signal.welch(sig, fs=srate, nperseg = nperseg , nfft = nfft, scaling=scaling, axis=axis)
-
-    if verbose:
-        n_windows = 2 * sig.size // nperseg
-        print(f'nperseg : {nperseg}')
-        print(f'sig size : {sig.size}')
-        print(f'total cycles lowest freq : {int(sig.size / ((1 / lowest_freq)*srate))}')
-        print(f'nwindows : {n_windows}')
-
-    return f, Pxx
-
 def crosscorrelogram(a, b, bins):
     """
     Lazy implementation of crosscorrelogram.
@@ -311,19 +226,6 @@ def crosscorrelogram(a, b, bins):
     diff = a[:, np.newaxis] - b[np.newaxis, :]
     count, bins = np.histogram(diff, bins)
     return count, bins
-
-def coherence(sig1,sig2, srate, lowest_freq, n_cycles = 5, nfft_factor = 1, verbose= False):
-    nperseg = get_wsize(srate, lowest_freq, n_cycles)
-    nfft = nperseg * nfft_factor
-    f, Cxy = signal.coherence(sig1,sig2, fs=srate, nperseg = nperseg , nfft = nfft )
-    if verbose:
-        n_windows = 2 * sig.size // nperseg
-        print(f'nperseg : {nperseg}')
-        print(f'sig size : {sig.size}')
-        print(f'total cycles lowest freq : {int(sig.size / ((1 / lowest_freq)*srate))}')
-        print(f'nwindows : {n_windows}')
-    return f, Cxy
-
 
 def get_rate_variablity(cycles, rate_bins, bin_size_min, colname_date, colname_time, units):
     times = cycles[colname_date].values
@@ -368,7 +270,6 @@ def get_rate_variablity(cycles, rate_bins, bin_size_min, colname_date, colname_t
     units=units,
     )
     return results
-
 
 def plot_variability(results, ratio_saturation=4, ax=None, plot_type = '2d', color='red'):
     globals().update(results)
@@ -867,93 +768,5 @@ def get_crest_line(freqs, Sxx, freq_axis = 0):
     fmax_freqs = np.apply_along_axis(lambda i:freqs[i], axis = freq_axis, arr = argmax_freqs)
     return fmax_freqs
 
-def load_overview_data():
-    return pd.read_excel(base_folder / 'overview_data_pycns.xlsx')
-
-def get_patients_list_raw(verbose = False):
-    patients = [str(x).split('/')[-1] for x in data_path.iterdir() if x.is_dir()]
-    if verbose:
-        print(patients)
-    return patients
-
-def get_patient_list(stream_selection = None, patient_type = None, threshold_duration_mins = 120, threshold_N_SDs = 0, verbose = False):
-    """
-    Function aiming to get a list of patient based on various criteria (stream availability, patient belonging to SD ICU or not, minimal stream duration).
-    
-    ----------
-    Parameters
-    ----------
-    - stream_selection : None or list or str
-        If None, no selection based of this criteria. Select all pycns readable patients if set to 'readable'. Select pycns readable patients with ICP and ABP available if ['ICP','ABP'] for example. Default = None
-    - patient_type : None or str
-        If None, no selection is applied. If 'SD_ICU' or 'non_SD_ICU', select patients based on patients belonging to this criteria. Default = None
-    - threshold_duration_mins : float or int
-        If 0, no selection is applied. Else, apply a selection based on streams with durations of at least this parameter. Default = 120 minutes
-    - threshold_N_SDs : int
-        Filter patient based on number of SD manually detected by Baptiste in events
-    - verbose : bool
-        If True, print some informations about the amount of patients selected from the total list. Default = False.
-
-    -------
-    Returns
-    -------
-    - sub_list : List of patients
-    """
-    detailed_view = pd.read_excel(base_folder / 'detailed_view_data_pycns.xlsx')
-    all_patients = list(detailed_view['patient'].unique())
-
-    if threshold_N_SDs > 0:
-        patient_n_sds_selected = list(detailed_view[detailed_view['N_SDs'] >= threshold_N_SDs]['patient'].unique())
-
-    if patient_type is None:
-        sub_list = all_patients
-    else:
-        detailed_view = detailed_view[detailed_view['patient_type'] == patient_type]
-
-    
-    if stream_selection is None:
-        sub_list = list(detailed_view['patient'].unique())
-
-    elif stream_selection == 'readable': 
-        vcount = detailed_view['patient'].value_counts()
-        mask_vcount = vcount > 1
-        sub_list = list(mask_vcount.index[mask_vcount])
-    else:
-        mask = (detailed_view['stream'].isin(stream_selection)) & (detailed_view['duration_mins']>=threshold_duration_mins)
-        masked_df = detailed_view[mask]
-        vcount = masked_df['patient'].value_counts()
-        sub_list = list(vcount.index[vcount == len(stream_selection)])
-
-    if threshold_N_SDs > 0:
-        sub_list = [sub for sub in sub_list if sub in patient_n_sds_selected]
-
-    if verbose:
-        n_before_selection = len(all_patients)
-        n_after_selection = len(sub_list)
-        print(f'Selection based on streams {stream_selection} and patient of type {patient_type} with at least {threshold_duration_mins} minutes of recording and at least {threshold_N_SDs} SDs kept {n_after_selection} patients from {n_before_selection} initially')
-    return sub_list
-
 if __name__ == "__main__":
-    # sels = [['EEG'],['Scalp'],['ECoG'],['Scalp','ECoG'],['ECoG']]
-    # mins = [120,120,120,120,60*24*7]
-    # for sel, min in zip(sels,mins):
-    #     print(get_patient_list(stream_selection = sel, threshold_duration_mins=min, verbose = True))
-
-    # print(get_patient_list(stream_selection = ['Scalp','ECoG'], patient_type='SD_ICU', threshold_duration_mins=120, verbose = True))
-    # print(get_patient_list(stream_selection = 'readable', verbose = True))
-    print(get_patient_list(stream_selection = ['ECG_II'], verbose = True))
-
-    # patients_sd_icu = get_patient_list(stream_selection = ['Scalp','ECoG'], patient_type='SD_ICU', threshold_duration_mins=120)
-    # df = pd.read_excel(base_folder / 'overview_data_pycns.xlsx', index_col = 0)
-    # print(df.loc[patients_sd_icu,:]['Duration_Mins'].sum() / (24 * 60))
-    # print(df.loc[patients_sd_icu,:]['Duration_Mins'].agg(['mean','std']) / (24*60))
-    
-    # print([sub for sub in get_patient_list(None, patient_type = 'SD_ICU') if not sub in get_patient_list(['ECoG'], patient_type = 'SD_ICU')])
-    
-    # print(get_patient_list(stream_selection = 'readable', threshold_duration_mins = 0, threshold_N_SDs = 1, verbose = True))
-
-    # print([sub for sub in get_patient_list(stream_selection = None) if not sub in get_patient_list(stream_selection = 'readable')])
-
-    # compute_prx_and_keep_nans(CnsReader(data_path / 'MF12'))
-
-    # compute_prx(CnsReader(data_path / 'MF12'))
+    print(get_patient_ids())
