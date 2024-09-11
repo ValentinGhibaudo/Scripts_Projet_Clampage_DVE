@@ -58,15 +58,15 @@ def get_metadata(sub = None):
     Ouputs 
         pd.DataFrame or pd.Series
     """
-    path = base_folder / 'tab_base_neuromonito.xlsx'
+    path = base_folder / 'DATA_noID.xlsx'
     if sub is None:
-        return pd.read_excel(path)
+        return pd.read_excel(path, sheet_name = 'RECEUIL')
     else:
-        return pd.read_excel(path).set_index('ID_pseudo').loc[sub,:]
+        return pd.read_excel(path, sheet_name = 'RECEUIL').set_index('Num_CNS').loc[sub,:]
     
 def get_patient_ids():
-    path = base_folder / 'tab_base_neuromonito.xlsx'
-    return list(pd.read_excel(path)['ID_pseudo'])
+    meta = get_metadata()
+    return list(meta['Num_CNS'].dropna())
     
 def iirfilt(sig, srate, lowcut=None, highcut=None, order = 4, ftype = 'butter', verbose = False, show = False, axis = -1):
 
@@ -769,4 +769,5 @@ def get_crest_line(freqs, Sxx, freq_axis = 0):
     return fmax_freqs
 
 if __name__ == "__main__":
+    # print(get_metadata())
     print(get_patient_ids())
