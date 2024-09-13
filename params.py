@@ -19,6 +19,7 @@ detect_icp_params = {
     'highcut':10,
     'order':4,
     'ftype':'butter',
+    'exclude_sweep_ms':200, 
     'icp_chan_name':icp_chan_name
 }
 
