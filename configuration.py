@@ -2,7 +2,7 @@ import sys,os
 import getpass
 from pathlib import Path
 
-if getpass.getuser() in ('valentin.ghibaudo','baptiste.balanca') and  sys.platform.startswith('linux'):
+if getpass.getuser() in ('valentin.ghibaudo','baptiste.balanca', 'gwendan.percevault') and  sys.platform.startswith('linux'):
     base_folder_neuro_rea = '/crnldata/tiger/baptiste.balanca/Neuro_rea_monitorage/'
 
 base_folder_neuro_rea = Path(base_folder_neuro_rea)
