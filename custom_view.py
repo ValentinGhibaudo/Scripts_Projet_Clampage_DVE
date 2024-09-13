@@ -100,7 +100,8 @@ class ICP_Detections:
             ax.scatter(local_trough_dates, sig[local_trough_inds], color='y')
             ax.scatter(local_peak_dates, sig[local_peak_inds], color='g')
         else:
-            ax.plot()    
+            ax.plot()
+        ax.set_ylim(-5, 50)
 
 class Bipolar:
     name = 'Bipolar'
