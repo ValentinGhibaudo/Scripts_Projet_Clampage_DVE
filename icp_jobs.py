@@ -101,25 +101,29 @@ def test_psi(sub):
 psi_job = jobtools.Job(precomputedir, 'psi', psi_params, psi)
 jobtools.register_job(psi_job)
 
-# 
-def interpolate_samples(data, data_times, time_vector, kind = 'linear'):
-    f = scipy.interpolate.interp1d(data_times, data, fill_value="extrapolate", kind = kind)
-    xnew = time_vector
-    ynew = f(xnew)
-    return ynew
+# HEART RESP SPECTRAL PEAKS
+def heart_resp_spectral_peaks(sub, **p):
+    cns_reader = pycns.CnsReader(data_path / sub)
+    icp_chan_name = p['icp_chan_name'][sub]
+    icp_stream = cns_reader.streams[icp_chan_name]
+    srate = icp_stream.sample_rate
 
-def compute_heart_resp_spectral_ratio_in_icp(icp, srate, sub_name, wsize_secs = 50, resp_fband = (0.12,0.6), heart_fband = (0.8,2.5), rolling_N_time = 5, show_and_save = True):
-    
-    nperseg = int(wsize_secs * srate)
+    raw_icp, dates = icp_stream.get_data(with_times = True, apply_gain = True)
+
+    resp_fband = p['resp_fband']
+    heart_fband = p['heart_fband']
+    nperseg = int(p['spectrogram_win_size_secs'] * srate)
+    rolling_N_time = p['rolling_N_time_spectrogram']
     nfft = int(nperseg)
 
     # Compute spectro ICP
-    freqs, times_spectrum_s, Sxx_icp = scipy.signal.spectrogram(icp, fs = srate, nperseg =  nperseg, nfft = nfft)
+    freqs, times_spectrum_s, Sxx_icp = scipy.signal.spectrogram(raw_icp, fs = srate, nperseg =  nperseg, nfft = nfft)
+    dates_spectrum = (times_spectrum_s * 1e6) * np.timedelta64(1, 'us') + dates[0]
     Sxx_icp = np.sqrt(Sxx_icp)
     da = xr.DataArray(data = Sxx_icp, dims = ['freq','time'], coords = {'freq':freqs, 'time':times_spectrum_s})
     resp_amplitude = da.loc[resp_fband[0]:resp_fband[1],:].max('freq').rolling(time = rolling_N_time).median().bfill('time').ffill('time')
     heart_amplitude = da.loc[heart_fband[0]:heart_fband[1],:].max('freq').rolling(time = rolling_N_time).median().bfill('time').ffill('time')
-    if show_and_save:
+    if p['savefig']:
         resp_freq = da.loc[resp_fband[0]:resp_fband[1],:].idxmax('freq')
         heart_freq = da.loc[heart_fband[0]:heart_fband[1],:].idxmax('freq')
 
@@ -127,7 +131,7 @@ def compute_heart_resp_spectral_ratio_in_icp(icp, srate, sub_name, wsize_secs = 
         f_mask = (freqs < flim_max)
 
         fig, axs = plt.subplots(nrows = 3, figsize = (9, 8), constrained_layout = True)
-        fig.suptitle(sub_name, fontsize = 20)
+        fig.suptitle(sub, fontsize = 20)
 
         ax = axs[0]
         da_sel = da.loc[resp_fband[0]:heart_fband[1],:].mean('time')
@@ -142,37 +146,42 @@ def compute_heart_resp_spectral_ratio_in_icp(icp, srate, sub_name, wsize_secs = 
         to_plot = Sxx_icp[f_mask, :]
         vmin = np.quantile(to_plot, q)
         vmax = np.quantile(to_plot, 1-q)
-        ax.pcolormesh(times_spectrum_s, freqs[f_mask], to_plot, vmin=vmin, vmax=vmax)
-        ax.plot(times_spectrum_s, resp_freq, color = 'b', lw = lw)
-        ax.plot(times_spectrum_s, heart_freq, color = 'r', lw = lw)
-        ax.set_xlabel('Time (s)')
+        ax.pcolormesh(dates_spectrum, freqs[f_mask], to_plot, vmin=vmin, vmax=vmax)
+        ax.plot(dates_spectrum, resp_freq, color = 'b', lw = lw)
+        ax.plot(dates_spectrum, heart_freq, color = 'r', lw = lw)
+        ax.set_xlabel('Date')
         ax.set_ylabel('Frequency (Hz)')
 
         ax = axs[2]
-        ax.plot(times_spectrum_s, resp_amplitude, color = 'b')
-        ax.plot(times_spectrum_s, heart_amplitude, color = 'r')
-        ax.set_xlabel('Time (s)')
+        ax.plot(dates_spectrum, resp_amplitude, color = 'b')
+        ax.plot(dates_spectrum, heart_amplitude, color = 'r')
+        ax.set_xlabel('Date')
         ax.set_ylabel('Frequency (Hz)')
+        ax.set_xlim(dates_spectrum[0], dates_spectrum[-1])
+        d0 = dates_spectrum[0]
+        win_duration_hours = 2
+        for h in [0, 12, 24]:
+            dstart = d0 + np.timedelta64(h, 'h')
+            dstop = dstart + np.timedelta64(win_duration_hours, 'h')
+            ax.axvspan(dstart, dstop, color = 'g', alpha = 0.2)
 
-        fig.savefig(base_folder / 'results' / 'spectrograms_icp_verif' / f'{sub_name}.png' , dpi = 200, bbox_inches = 'tight')
+        fig.savefig(base_folder / 'results' / 'spectrograms_icp_verif' / f'{sub}.png' , dpi = 200, bbox_inches = 'tight')
         plt.close(fig)
 
     ratio_heart_resp = heart_amplitude / resp_amplitude
     res = {'times_spectrum_s':times_spectrum_s,'heart_in_icp_spectrum':heart_amplitude.values, 'resp_in_icp_spectrum':resp_amplitude.values,'ratio_heart_resp_in_icp_spectrum':ratio_heart_resp.values}
-    return res
-
-def heart_resp_spectral_peaks(sub, **p):
-    cns_reader = pycns.CnsReader(data_path / sub)
-    icp_stream = cns_reader.streams[p['icp_chan_name'][sub]]
-    srate = icp_stream.sample_rate
-    raw_signal, dates = icp_stream.get_data(with_times = True, apply_gain = True)
-    res = compute_heart_resp_spectral_ratio_in_icp(raw_signal, srate, sub, wsize_secs = 50, resp_fband = p['resp_fband'], heart_fband = p['heart_fband'], rolling_N_time = p['rolling_N_time_spectrogram'], show_and_save = p['savefig'])
-    return xr.Dataset()
+    da_spectral_features = xr.DataArray(data = np.array([heart_amplitude.values, resp_amplitude.values, ratio_heart_resp.values]),
+                                        dims = ['feature','date'],
+                                        coords = {'feature':['heart_in_icp','resp_in_icp','ratio'], 'date':dates_spectrum}
+                                        )
+    ds = xr.Dataset()
+    ds['spectral_features'] = da_spectral_features
+    return ds
 
 def test_heart_resp_spectral_peaks(sub):
     print(sub)
     ds = heart_resp_spectral_peaks(sub, **heart_resp_spectral_peaks_params)
-    # print(ds['heart_resp_spectral_peaks_params'])
+    print(ds['spectral_features'])
 
 heart_resp_spectral_peaks_job = jobtools.Job(precomputedir, 'heart_resp_spectral_peaks', heart_resp_spectral_peaks_params, heart_resp_spectral_peaks)
 jobtools.register_job(heart_resp_spectral_peaks_job)
@@ -180,10 +189,11 @@ jobtools.register_job(heart_resp_spectral_peaks_job)
 def compute_all():
     run_keys = [(sub,) for sub in subs]
     # jobtools.compute_job_list(detect_icp_job, run_keys, force_recompute=False, engine = 'loop')
-    jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
+    # jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
+    jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=False, engine = 'loop')
 
 if __name__ == "__main__":
     # test_detect_icp('Patient_2024_May_16__9_33_08_427295')
     # test_psi('Patient_2024_May_16__9_33_08_427295')
-    test_heart_resp_spectral_peaks('Patient_2024_May_16__9_33_08_427295')
-    # compute_all()
+    # test_heart_resp_spectral_peaks('Patient_2024_May_16__9_33_08_427295')
+    compute_all()
