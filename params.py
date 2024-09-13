@@ -27,3 +27,11 @@ psi_params = {
     'icp_chan_name':icp_chan_name,
 }
 
+heart_resp_spectral_peaks_params = {
+    'icp_chan_name':icp_chan_name,
+    'spectrogram_win_size_secs':60,
+    'resp_fband':(0.18,0.6),
+    'heart_fband':(0.8,2.5),
+    'rolling_N_time_spectrogram':5,
+    'savefig':True
+ } 
