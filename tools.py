@@ -292,12 +292,12 @@ def plot_variability(results, ratio_saturation=4, ax=None, plot_type = '2d', col
         ax.set_ylabel(f'rate variability [{units}]')  
     return ax
 
-def compute_icp(raw_icp, srate, date_vector = None, show = False, lowcut = 0.08, highcut = 10, order = 4, ftype = 'butter'):
+def compute_icp(raw_icp, srate, date_vector = None, show = False, lowcut = 0.08, highcut = 10, order = 4, ftype = 'butter', exclude_sweep_ms = 100):
     
     icp_filt = iirfilt(raw_icp, srate, lowcut = lowcut, highcut = highcut, order = order, ftype = ftype)
     
-    raw_peak_inds = physio.detect_peak(icp_filt, srate, thresh = 0.1, exclude_sweep_ms = 100)
-    raw_trough_inds = physio.detect_peak(-icp_filt, srate, thresh = 0.00001, exclude_sweep_ms = 100)
+    raw_peak_inds = physio.detect_peak(icp_filt, srate, thresh = 0.1, exclude_sweep_ms = exclude_sweep_ms)
+    raw_trough_inds = physio.detect_peak(-icp_filt, srate, thresh = 0.00001, exclude_sweep_ms = exclude_sweep_ms)
     
     troughs_before_peak_sel, = np.nonzero(np.diff(np.searchsorted(raw_peak_inds, raw_trough_inds)) > 0)
     troughs_before_peak_inds = raw_trough_inds[troughs_before_peak_sel]
