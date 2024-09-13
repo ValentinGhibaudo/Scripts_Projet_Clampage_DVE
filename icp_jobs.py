@@ -20,7 +20,7 @@ def detect_icp(sub, **p):
     icp_stream = cns_reader.streams[p['icp_chan_name'][sub]]
     srate_icp = icp_stream.sample_rate
     raw_icp, dates = icp_stream.get_data(with_times=True, apply_gain=True)
-    icp_features = compute_icp(raw_icp, srate_icp, date_vector = dates, lowcut = p['lowcut'], highcut = p['highcut'], order = p['order'], ftype = p['ftype'])
+    icp_features = compute_icp(raw_icp, srate_icp, date_vector = dates, lowcut = p['lowcut'], highcut = p['highcut'], order = p['order'], ftype = p['ftype'], exclude_sweep_ms=p['exclude_sweep_ms'])
     return xr.Dataset(icp_features)
 
 def test_detect_icp(sub):
@@ -37,7 +37,7 @@ def psi(sub, **p):
     icp_stream = cns_reader.streams[p['icp_chan_name'][sub]]
 
     # Add the plugin directory to the system path, for us it is in the plugin/pulse_detection directory
-    plugin_dir = base_folder / 'ICMPWaveformClassificationPlugin' / 'plugin' / 'pulse_detection'
+    plugin_dir = base_folder_neuro_rea / 'ICMPWaveformClassificationPlugin' / 'plugin' / 'pulse_detection'
     if str(plugin_dir) not in sys.path:
         sys.path.append(str(plugin_dir))
 
@@ -104,11 +104,11 @@ jobtools.register_job(psi_job)
 
 def compute_all():
     run_keys = [(sub,) for sub in subs]
-    jobtools.compute_job_list(detect_icp_job, run_keys, force_recompute=False, engine = 'loop')
-    # jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
+    # jobtools.compute_job_list(detect_icp_job, run_keys, force_recompute=False, engine = 'loop')
+    jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
 
 if __name__ == "__main__":
-    test_detect_icp('Patient_2024_May_16__9_33_08_427295')
+    # test_detect_icp('Patient_2024_May_16__9_33_08_427295')
     # test_psi('Patient_2024_May_16__9_33_08_427295')
 
-    # compute_all()
+    compute_all()
