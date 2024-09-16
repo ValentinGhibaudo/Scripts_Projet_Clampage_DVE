@@ -124,6 +124,9 @@ def heart_resp_spectral_peaks(sub, **p):
     resp_amplitude = da.loc[resp_fband[0]:resp_fband[1],:].max('freq').rolling(time = rolling_N_time).median().bfill('time').ffill('time')
     heart_amplitude = da.loc[heart_fband[0]:heart_fband[1],:].max('freq').rolling(time = rolling_N_time).median().bfill('time').ffill('time')
     if p['savefig']:
+        meta = get_metadata(sub)
+        has_dvi = meta['DVI']
+
         resp_freq = da.loc[resp_fband[0]:resp_fband[1],:].idxmax('freq')
         heart_freq = da.loc[heart_fband[0]:heart_fband[1],:].idxmax('freq')
 
@@ -131,7 +134,7 @@ def heart_resp_spectral_peaks(sub, **p):
         f_mask = (freqs < flim_max)
 
         fig, axs = plt.subplots(nrows = 3, figsize = (9, 8), constrained_layout = True)
-        fig.suptitle(sub, fontsize = 20)
+        fig.suptitle(f'{sub} (DVI = {has_dvi})', fontsize = 20)
 
         ax = axs[0]
         da_sel = da.loc[resp_fband[0]:heart_fband[1],:].mean('time')
@@ -190,7 +193,7 @@ def compute_all():
     run_keys = [(sub,) for sub in subs]
     # jobtools.compute_job_list(detect_icp_job, run_keys, force_recompute=False, engine = 'loop')
     # jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
-    jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=False, engine = 'loop')
+    jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
 
 if __name__ == "__main__":
     # test_detect_icp('Patient_2024_May_16__9_33_08_427295')
