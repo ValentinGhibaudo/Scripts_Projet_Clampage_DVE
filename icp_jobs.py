@@ -189,14 +189,52 @@ def test_heart_resp_spectral_peaks(sub):
 heart_resp_spectral_peaks_job = jobtools.Job(precomputedir, 'heart_resp_spectral_peaks', heart_resp_spectral_peaks_params, heart_resp_spectral_peaks)
 jobtools.register_job(heart_resp_spectral_peaks_job)
 
+# RATIO P1 P2 
+def ratio_P1P2(sub, **p):
+    cns_reader = pycns.CnsReader(data_path / sub)
+    icp_stream = cns_reader.streams[p['icp_chan_name'][sub]]
+
+    # Add the plugin directory to the system path, for us it is in the plugin/pulse_detection directory
+    plugin_dir = base_folder_neuro_rea / 'p2p1'
+    if str(plugin_dir) not in sys.path:
+        sys.path.append(str(plugin_dir))
+
+    # Import the necessary plugin modules
+    from subpeaks import SubPeakDetector
+
+    srate = icp_stream.sample_rate
+    raw_signal, dates = icp_stream.get_data(with_times = True, apply_gain = True)
+    time = np.arange(raw_signal.size) / srate
+    assert np.any(~np.isnan(raw_signal))
+    pipeline = SubPeakDetector()
+    # classes, times = pipeline.detect_p1p2(raw_signal, time)
+    print(pipeline)
+
+
+    # ratio_P1P2_da = xr.DataArray(data = ratio_P1P2_vector, dims = ['date'], coords=  {'date':ratio_dates})
+    ds = xr.Dataset()
+    # ds['ratio_P1P2'] = ratio_P1P2_da
+    return ds
+
+def test_ratio_P1P2(sub):
+    print(sub)
+    ds = ratio_P1P2(sub, **ratio_P1P2_params)
+    # print(ds['ratio_P1P2'])
+
+ratio_P1P2_job = jobtools.Job(precomputedir, 'ratio_P1P2', ratio_P1P2_params, ratio_P1P2)
+jobtools.register_job(ratio_P1P2_job)
+
 def compute_all():
     run_keys = [(sub,) for sub in subs]
     # jobtools.compute_job_list(detect_icp_job, run_keys, force_recompute=False, engine = 'loop')
     # jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
-    jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
+    # jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
+    jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'loop')
 
 if __name__ == "__main__":
     # test_detect_icp('Patient_2024_May_16__9_33_08_427295')
     # test_psi('Patient_2024_May_16__9_33_08_427295')
     # test_heart_resp_spectral_peaks('Patient_2024_May_16__9_33_08_427295')
-    compute_all()
+    test_ratio_P1P2('Patient_2024_May_16__9_33_08_427295')
+
+    # compute_all()

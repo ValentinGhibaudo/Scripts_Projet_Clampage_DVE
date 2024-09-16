@@ -35,3 +35,7 @@ heart_resp_spectral_peaks_params = {
     'rolling_N_time_spectrogram':5,
     'savefig':True
  } 
+
+ratio_P1P2_params = {
+    'icp_chan_name':icp_chan_name,
+}
