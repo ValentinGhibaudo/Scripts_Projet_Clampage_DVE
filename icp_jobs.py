@@ -191,35 +191,47 @@ jobtools.register_job(heart_resp_spectral_peaks_job)
 
 # RATIO P1 P2 
 def ratio_P1P2(sub, **p):
+    meta = get_metadata(sub)
+    has_dvi = meta['DVI']
     cns_reader = pycns.CnsReader(data_path / sub)
     icp_stream = cns_reader.streams[p['icp_chan_name'][sub]]
 
     # Add the plugin directory to the system path, for us it is in the plugin/pulse_detection directory
-    plugin_dir = base_folder_neuro_rea / 'p2p1'
+    plugin_dir = base_folder_neuro_rea / 'package_P2_P1' 
     if str(plugin_dir) not in sys.path:
         sys.path.append(str(plugin_dir))
 
     # Import the necessary plugin modules
-    from subpeaks import SubPeakDetector
+    from p2p1.subpeaks import SubPeakDetector
 
     srate = icp_stream.sample_rate
     raw_signal, dates = icp_stream.get_data(with_times = True, apply_gain = True)
+    raw_signal[np.isnan(raw_signal)] = np.nanmedian(raw_signal) # le signal ne doit pas contenir de NaN
     time = np.arange(raw_signal.size) / srate
-    assert np.any(~np.isnan(raw_signal))
-    pipeline = SubPeakDetector()
-    # classes, times = pipeline.detect_p1p2(raw_signal, time)
-    print(pipeline)
 
+    sd = SubPeakDetector(all_preds=False)
+    srate_detect = int(np.round(srate))
+    sd.detect_pulses(signal = raw_signal, fs = srate_detect) 
+    onsets_inds, ratio_P1P2_vector = sd.compute_ratio()
+    onsets_times = onsets_inds / srate_detect
+    onsets_dates = dates[np.searchsorted(time, onsets_times)]
+    ratio_P1P2_vector = pd.Series(ratio_P1P2_vector).rolling(window=p['N_pulse_sliding_window']).mean().values
 
-    # ratio_P1P2_da = xr.DataArray(data = ratio_P1P2_vector, dims = ['date'], coords=  {'date':ratio_dates})
+    fig, ax = plt.subplots()
+    ax.plot(ratio_P1P2_vector)
+    ax.set_title(f'{sub} P1/P2 ratios (DVI = {has_dvi})')
+    fig.savefig(base_folder / 'results' / 'ratio_p1p2_verif' / f'{sub}.png', dpi = 200, bbox_inches = 'tight')
+    plt.close(fig)
+
+    ratio_P1P2_da = xr.DataArray(data = ratio_P1P2_vector, dims = ['date'], coords=  {'date':onsets_dates})
     ds = xr.Dataset()
-    # ds['ratio_P1P2'] = ratio_P1P2_da
+    ds['ratio_P1P2'] = ratio_P1P2_da
     return ds
 
 def test_ratio_P1P2(sub):
     print(sub)
     ds = ratio_P1P2(sub, **ratio_P1P2_params)
-    # print(ds['ratio_P1P2'])
+    print(ds['ratio_P1P2'])
 
 ratio_P1P2_job = jobtools.Job(precomputedir, 'ratio_P1P2', ratio_P1P2_params, ratio_P1P2)
 jobtools.register_job(ratio_P1P2_job)
