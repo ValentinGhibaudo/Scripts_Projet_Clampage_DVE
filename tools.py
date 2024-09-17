@@ -12,6 +12,12 @@ from pycns import CnsReader
 import xmltodict
 import scipy
 
+def get_date_clamp_gmt(sub, time_zone = 'Europe/Paris'):
+    meta = get_metadata(sub)
+    start_paris = meta['Date_clamp']
+    start_gmt = pd.to_datetime(start_paris).tz_localize(time_zone).tz_convert('GMT')
+    return start_gmt.to_numpy()
+
 def notch_filter(sig, srate, bandcut = (48,52), order = 4, ftype = 'butter', show = False, axis = -1):
 
     """
