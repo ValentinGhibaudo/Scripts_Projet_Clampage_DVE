@@ -218,7 +218,7 @@ def ratio_P1P2(sub, **p):
     ratio_P1P2_vector = pd.Series(ratio_P1P2_vector).rolling(window=p['N_pulse_sliding_window']).mean().values
 
     fig, ax = plt.subplots()
-    ax.plot(ratio_P1P2_vector)
+    ax.plot(onsets_dates, ratio_P1P2_vector)
     ax.set_title(f'{sub} P1/P2 ratios (DVI = {has_dvi})')
     fig.savefig(base_folder / 'results' / 'ratio_p1p2_verif' / f'{sub}.png', dpi = 200, bbox_inches = 'tight')
     plt.close(fig)
@@ -247,6 +247,6 @@ if __name__ == "__main__":
     # test_detect_icp('Patient_2024_May_16__9_33_08_427295')
     # test_psi('Patient_2024_May_16__9_33_08_427295')
     # test_heart_resp_spectral_peaks('Patient_2024_May_16__9_33_08_427295')
-    test_ratio_P1P2('Patient_2024_May_16__9_33_08_427295')
+    # test_ratio_P1P2('Patient_2024_May_16__9_33_08_427295')
 
-    # compute_all()
+    compute_all()
