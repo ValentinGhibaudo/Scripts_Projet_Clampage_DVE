@@ -46,6 +46,11 @@ metrics_params = {
     'psi_params':psi_params,
     'ratio_P1P2_params':ratio_P1P2_params,
     'heart_resp_spectral_peaks_params':heart_resp_spectral_peaks_params,
+    'icp_chan_name':icp_chan_name,
     'analyzing_window_start_hours_after_clamp':[0,12,24],
     'analyzing_window_duration_hours':2,
+}
+
+concat_metrics_params = {
+    'metrics_params':metrics_params
 }

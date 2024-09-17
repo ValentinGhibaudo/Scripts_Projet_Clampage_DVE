@@ -11,6 +11,7 @@ from params import *
 import jobtools
 import joblib
 import json
+import seaborn as sns
 
 # DETECT ICP JOB
 
@@ -277,6 +278,11 @@ def metrics(sub, **p):
     p1p2_da = ratio_P1P2_job.get(sub)['ratio_P1P2']
     spectral_features_da = heart_resp_spectral_peaks_job.get(sub)['spectral_features']
 
+    cns_reader = pycns.CnsReader(data_path / sub)
+    stream_name = p['icp_chan_name'][sub]
+    icp_mean_stream = cns_reader.streams[f'{stream_name}_Mean']
+    icp_mean, dates_mean = icp_mean_stream.get_data(with_times = True, apply_gain = True)
+
     meta = get_metadata(sub)
     has_dvi = meta['DVI']
     clamp_date = get_date_clamp_gmt(sub)
@@ -285,23 +291,25 @@ def metrics(sub, **p):
         start_analysis = clamp_date + np.timedelta64(d, 'h')
         stop_analysis = start_analysis + np.timedelta64(p['analyzing_window_duration_hours'], 'h')
 
-        local_icp_features = icp_features[(icp_features['peak_date'] > start_analysis) & (icp_features['peak_date'] < start_analysis)]
-        local_icp_peak_amplitude_mean_mmHg = local_icp_features['peak_amplitude'].mean()
+        local_icp_mmHg = np.nanmedian(icp_mean[(dates_mean > start_analysis) & (dates_mean < stop_analysis)])
 
-        local_psi_mean = float(psi_da.loc[start_analysis:stop_analysis].mean('date'))
+        local_icp_features = icp_features[(icp_features['peak_date'] > start_analysis) & (icp_features['peak_date'] < stop_analysis)]
+        local_icp_peak_amplitude_mean_mmHg = local_icp_features['rise_amplitude'].median()
 
-        local_p1p2ratio_mean = float(p1p2_da.loc[start_analysis:stop_analysis].mean('date'))
+        local_psi_mean = float(psi_da.loc[start_analysis:stop_analysis].median('date'))
 
-        local_spectral_features_da = spectral_features_da.loc[:,start_analysis:stop_analysis].mean('date')
+        local_p1p2ratio_mean = float(p1p2_da.loc[start_analysis:stop_analysis].median('date'))
+
+        local_spectral_features_da = spectral_features_da.loc[:,start_analysis:stop_analysis].median('date')
         local_heart_amplitude_mean_mmHg = float(local_spectral_features_da.loc['heart_in_icp'])
         local_resp_amplitude_mean_mmHg = float(local_spectral_features_da.loc['resp_in_icp'])
         local_ratio_hr_amplitude_mean = float(local_spectral_features_da.loc['ratio'])
 
-        row = [sub, has_dvi, meta['Age'], meta['Sexe'], meta['Duree_sejour'], meta['Duree_DVE'], 
-               local_icp_peak_amplitude_mean_mmHg, local_psi_mean, local_p1p2ratio_mean, local_heart_amplitude_mean_mmHg, local_resp_amplitude_mean_mmHg, local_ratio_hr_amplitude_mean
+        row = [sub, has_dvi, meta['Age'], meta['Sexe'], meta['Duree_sejour'], meta['Duree_DVE'], str(d),
+               local_icp_mmHg, local_icp_peak_amplitude_mean_mmHg, local_psi_mean, local_p1p2ratio_mean, local_heart_amplitude_mean_mmHg, local_resp_amplitude_mean_mmHg, local_ratio_hr_amplitude_mean
                ]
         rows.append(row)
-    columns = ['Patient','DVI','Age','Sexe','Duree_sejour','Duree_DVE','Pulse_Amplitude_mmHg','PSI','P1P2_ratio','Heart_Amplitude_mmHG','Resp_Amplitude_mmHg','RatioHR']
+    columns = ['Patient','DVI','Age','Sexe','Duree_sejour','Duree_DVE','Heures_Post_Clampage','ICP_mmHg','Pulse_Amplitude_mmHg','PSI','P1P2_ratio','Heart_Amplitude_mmHg','Resp_Amplitude_mmHg','RatioHR']
     metrics = pd.DataFrame(rows, columns = columns)
     return xr.Dataset(metrics)
 
@@ -313,19 +321,73 @@ def test_metrics(sub):
 metrics_job = jobtools.Job(precomputedir, 'metrics', metrics_params, metrics)
 jobtools.register_job(metrics_job)
 
+# CONCAT METRICS
+def concat_metrics(key, **p):
+    concat = pd.concat([metrics_job.get(sub).to_dataframe() for sub in subs])
+    concat = concat.reset_index(drop = True)
+    return xr.Dataset(concat)
+
+def test_concat_metrics():
+    ds = concat_metrics('global_key', **concat_metrics_params).to_dataframe()
+    print(ds)
+
+concat_metrics_job = jobtools.Job(precomputedir, 'concat_metrics', concat_metrics_params, concat_metrics)
+jobtools.register_job(concat_metrics_job)
+
+def save_results_and_stats():
+    import ghibtools as gh
+    metrics = concat_metrics_job.get('global_key').to_dataframe()
+    metrics.to_excel(base_folder / 'results' / 'results.xlsx')
+    predictors = ['DVI','Heures_Post_Clampage']
+    outcomes = ['ICP_mmHg','Pulse_Amplitude_mmHg','PSI','P1P2_ratio','Heart_Amplitude_mmHg','Resp_Amplitude_mmHg','RatioHR']
+    # nrows = 2
+    # ncols = 3
+    # subplots_pos = attribute_subplots(outcomes, nrows, ncols)
+    nrows = len(outcomes)
+
+    fig, axs = plt.subplots(nrows=nrows, figsize = (6, nrows * 3), constrained_layout = True)
+    for r, outcome in enumerate(outcomes):
+        ax = axs[r]
+        keep_cols = ['Patient'] + predictors + [outcome]
+        metrics_stats = metrics[keep_cols].dropna()
+        # print(metrics_stats)
+        gh.auto_stats(df = metrics,
+                      predictor = 'Heures_Post_Clampage',
+                      outcome = outcome,
+                      subject = 'Patient',
+                      ax=ax,
+                      )
+        # sns.pointplot(data = metrics_stats,
+        #               x = 'Heures_Post_Clampage',
+        #               y = outcome,
+        #               hue = 'DVI',
+        #               ax=ax
+        #               )
+    fig.savefig(base_folder / 'results' / 'stats.png', dpi = 200, bbox_inches = 'tight')
+    plt.close(fig)
+        
+
 def compute_all():
     run_keys = [(sub,) for sub in subs]
     # jobtools.compute_job_list(detect_icp_job, run_keys, force_recompute=False, engine = 'loop')
     # jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
-    jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
+    # jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
     # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'loop')
     # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=True, engine = 'slurm', 
     #                           slurm_params={'cpus-per-task':'5', 'mem':'30G', }, module_name='icp_jobs')
+
+    jobtools.compute_job_list(metrics_job, run_keys, force_recompute=True, engine = 'loop')
+    jobtools.compute_job_list(concat_metrics_job, [('global_key',)], force_recompute=True, engine = 'loop')
+
 
 if __name__ == "__main__":
     # test_detect_icp('Patient_2024_May_16__9_33_08_427295')
     # test_psi('Patient_2024_May_16__9_33_08_427295')
     # test_heart_resp_spectral_peaks('Patient_2024_May_16__9_33_08_427295')
     # test_ratio_P1P2('Patient_2024_May_16__9_33_08_427295')
+    # test_metrics('Patient_2024_May_16__9_33_08_427295')
+    # test_concat_metrics()
 
     compute_all()
+
+    save_results_and_stats()
