@@ -38,5 +38,5 @@ heart_resp_spectral_peaks_params = {
 
 ratio_P1P2_params = {
     'icp_chan_name':icp_chan_name,
-    'N_pulse_sliding_window':10,
+    'N_pulse_sliding_window_fig':20,
 }

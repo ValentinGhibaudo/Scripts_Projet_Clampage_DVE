@@ -194,7 +194,10 @@ def ratio_P1P2(sub, **p):
     meta = get_metadata(sub)
     has_dvi = meta['DVI']
     cns_reader = pycns.CnsReader(data_path / sub)
-    icp_stream = cns_reader.streams[p['icp_chan_name'][sub]]
+    stream_name = p['icp_chan_name'][sub]
+    icp_stream = cns_reader.streams[stream_name]
+    icp_mean_stream = cns_reader.streams[f'{stream_name}_Mean']
+    icp_mean, dates_mean = icp_mean_stream.get_data(with_times = True, apply_gain = True)
 
     # Add the plugin directory to the system path, for us it is in the plugin/pulse_detection directory
     plugin_dir = base_folder_neuro_rea / 'package_P2_P1' 
@@ -206,7 +209,7 @@ def ratio_P1P2(sub, **p):
 
     srate = icp_stream.sample_rate
     raw_signal, dates = icp_stream.get_data(with_times = True, apply_gain = True)
-    raw_signal[np.isnan(raw_signal)] = np.nanmedian(raw_signal) # le signal ne doit pas contenir de NaN
+    raw_signal[np.isnan(raw_signal)] = np.nanmedian(raw_signal) # signal must not contain Nan
     time = np.arange(raw_signal.size) / srate
 
     sd = SubPeakDetector(all_preds=False)
@@ -215,11 +218,25 @@ def ratio_P1P2(sub, **p):
     onsets_inds, ratio_P1P2_vector = sd.compute_ratio()
     onsets_times = onsets_inds / srate_detect
     onsets_dates = dates[np.searchsorted(time, onsets_times)]
-    ratio_P1P2_vector = pd.Series(ratio_P1P2_vector).rolling(window=p['N_pulse_sliding_window']).mean().values
+    ratio_P1P2_vector = pd.Series(ratio_P1P2_vector).rolling(window=p['N_pulse_sliding_window_fig']).mean().values
+    if onsets_dates.size == ratio_P1P2_vector.size + 1:
+        onsets_dates = onsets_dates[:-1]
+    elif onsets_dates.size == ratio_P1P2_vector.size - 1:
+        ratio_P1P2_vector = ratio_P1P2_vector[:-1]
 
-    fig, ax = plt.subplots()
+    fig, axs = plt.subplots(nrows = 2)
+    fig.suptitle(f'{sub} (DVI = {has_dvi})')
+
+    ax = axs[0]
     ax.plot(onsets_dates, ratio_P1P2_vector)
-    ax.set_title(f'{sub} P1/P2 ratios (DVI = {has_dvi})')
+    ax.set_title('P1/P2 ratios')
+    ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
+
+    ax = axs[1]
+    ax.plot(dates_mean, icp_mean, color = 'k')
+    ax.set_title('ICP Mean')
+    ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
+
     fig.savefig(base_folder / 'results' / 'ratio_p1p2_verif' / f'{sub}.png', dpi = 200, bbox_inches = 'tight')
     plt.close(fig)
 
@@ -241,7 +258,9 @@ def compute_all():
     # jobtools.compute_job_list(detect_icp_job, run_keys, force_recompute=False, engine = 'loop')
     # jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
     # jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
-    jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'loop')
+    # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'loop')
+    jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'slurm', 
+                              slurm_params={'cpus-per-task':'5', 'mem':'10G', }, module_name='icp_jobs')
 
 if __name__ == "__main__":
     # test_detect_icp('Patient_2024_May_16__9_33_08_427295')
