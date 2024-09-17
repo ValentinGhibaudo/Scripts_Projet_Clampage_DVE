@@ -1,3 +1,3 @@
 # Projet Clampage DVE - Compliance cérébrale 
 
-- Valentin Ghibaudo, Ayoub, Baptiste Balança
+- Valentin Ghibaudo, Ayoub Lehiani, Baptiste Balança
