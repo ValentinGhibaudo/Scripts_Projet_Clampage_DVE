@@ -103,6 +103,7 @@ jobtools.register_job(psi_job)
 
 # HEART RESP SPECTRAL PEAKS
 def heart_resp_spectral_peaks(sub, **p):
+    
     cns_reader = pycns.CnsReader(data_path / sub)
     icp_chan_name = p['icp_chan_name'][sub]
     icp_stream = cns_reader.streams[icp_chan_name]
@@ -161,12 +162,14 @@ def heart_resp_spectral_peaks(sub, **p):
         ax.set_xlabel('Date')
         ax.set_ylabel('Frequency (Hz)')
         ax.set_xlim(dates_spectrum[0], dates_spectrum[-1])
-        d0 = dates_spectrum[0]
-        win_duration_hours = 2
-        for h in [0, 12, 24]:
-            dstart = d0 + np.timedelta64(h, 'h')
-            dstop = dstart + np.timedelta64(win_duration_hours, 'h')
-            ax.axvspan(dstart, dstop, color = 'g', alpha = 0.2)
+
+        clamp_date = get_date_clamp_gmt(sub)
+        win_size_hours = 2
+        for d, c in zip([0, 12, 24],['r','g','b']):
+            start_span = clamp_date + np.timedelta64(d, 'h')
+            stop_span = start_span + np.timedelta64(win_size_hours, 'h')
+            ax.axvspan(start_span, stop_span, color = c, alpha = 0.2, label = f'+{d}h window')
+        ax.legend()
 
         fig.savefig(base_folder / 'results' / 'spectrograms_icp_verif' / f'{sub}.png' , dpi = 200, bbox_inches = 'tight')
         plt.close(fig)
@@ -191,6 +194,7 @@ jobtools.register_job(heart_resp_spectral_peaks_job)
 
 # RATIO P1 P2 
 def ratio_P1P2(sub, **p):
+    win_size_hours = 2
     meta = get_metadata(sub)
     has_dvi = meta['DVI']
     cns_reader = pycns.CnsReader(data_path / sub)
@@ -224,18 +228,31 @@ def ratio_P1P2(sub, **p):
     elif onsets_dates.size == ratio_P1P2_vector.size - 1:
         ratio_P1P2_vector = ratio_P1P2_vector[:-1]
 
-    fig, axs = plt.subplots(nrows = 2)
+
+    clamp_date = get_date_clamp_gmt(sub)
+
+    fig, axs = plt.subplots(nrows = 2, constrained_layout = True)
     fig.suptitle(f'{sub} (DVI = {has_dvi})')
 
     ax = axs[0]
     ax.plot(onsets_dates, ratio_P1P2_vector)
     ax.set_title('P1/P2 ratios')
     ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
+    for d, c in zip([0, 12, 24],['r','g','b']):
+        start_span = clamp_date + np.timedelta64(d, 'h')
+        stop_span = start_span + np.timedelta64(win_size_hours, 'h')
+        ax.axvspan(start_span, stop_span, color = c, alpha = 0.2, label = f'+{d}h window')
+    ax.legend()
 
     ax = axs[1]
     ax.plot(dates_mean, icp_mean, color = 'k')
     ax.set_title('ICP Mean')
     ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
+    for d, c in zip([0, 12, 24],['r','g','b']):
+        start_span = clamp_date + np.timedelta64(d, 'h')
+        stop_span = start_span + np.timedelta64(win_size_hours, 'h')
+        ax.axvspan(start_span, stop_span, color = c, alpha = 0.2, label = f'+{d}h window')
+    ax.legend()
 
     fig.savefig(base_folder / 'results' / 'ratio_p1p2_verif' / f'{sub}.png', dpi = 200, bbox_inches = 'tight')
     plt.close(fig)
@@ -253,14 +270,57 @@ def test_ratio_P1P2(sub):
 ratio_P1P2_job = jobtools.Job(precomputedir, 'ratio_P1P2', ratio_P1P2_params, ratio_P1P2)
 jobtools.register_job(ratio_P1P2_job)
 
+# METRICS
+def metrics(sub, **p):
+    icp_features = detect_icp_job.get(sub).to_dataframe()
+    psi_da = psi_job.get(sub)['psi']
+    p1p2_da = ratio_P1P2_job.get(sub)['ratio_P1P2']
+    spectral_features_da = heart_resp_spectral_peaks_job.get(sub)['spectral_features']
+
+    meta = get_metadata(sub)
+    has_dvi = meta['DVI']
+    clamp_date = get_date_clamp_gmt(sub)
+    rows = []
+    for d in p['analyzing_window_start_hours_after_clamp']:
+        start_analysis = clamp_date + np.timedelta64(d, 'h')
+        stop_analysis = start_analysis + np.timedelta64(p['analyzing_window_duration_hours'], 'h')
+
+        local_icp_features = icp_features[(icp_features['peak_date'] > start_analysis) & (icp_features['peak_date'] < start_analysis)]
+        local_icp_peak_amplitude_mean_mmHg = local_icp_features['peak_amplitude'].mean()
+
+        local_psi_mean = float(psi_da.loc[start_analysis:stop_analysis].mean('date'))
+
+        local_p1p2ratio_mean = float(p1p2_da.loc[start_analysis:stop_analysis].mean('date'))
+
+        local_spectral_features_da = spectral_features_da.loc[:,start_analysis:stop_analysis].mean('date')
+        local_heart_amplitude_mean_mmHg = float(local_spectral_features_da.loc['heart_in_icp'])
+        local_resp_amplitude_mean_mmHg = float(local_spectral_features_da.loc['resp_in_icp'])
+        local_ratio_hr_amplitude_mean = float(local_spectral_features_da.loc['ratio'])
+
+        row = [sub, has_dvi, meta['Age'], meta['Sexe'], meta['Duree_sejour'], meta['Duree_DVE'], 
+               local_icp_peak_amplitude_mean_mmHg, local_psi_mean, local_p1p2ratio_mean, local_heart_amplitude_mean_mmHg, local_resp_amplitude_mean_mmHg, local_ratio_hr_amplitude_mean
+               ]
+        rows.append(row)
+    columns = ['Patient','DVI','Age','Sexe','Duree_sejour','Duree_DVE','Pulse_Amplitude_mmHg','PSI','P1P2_ratio','Heart_Amplitude_mmHG','Resp_Amplitude_mmHg','RatioHR']
+    metrics = pd.DataFrame(rows, columns = columns)
+    return xr.Dataset(metrics)
+
+def test_metrics(sub):
+    print(sub)
+    ds = metrics(sub, **metrics_params).to_dataframe()
+    print(ds)
+
+metrics_job = jobtools.Job(precomputedir, 'metrics', metrics_params, metrics)
+jobtools.register_job(metrics_job)
+
 def compute_all():
     run_keys = [(sub,) for sub in subs]
     # jobtools.compute_job_list(detect_icp_job, run_keys, force_recompute=False, engine = 'loop')
     # jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
-    # jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
+    jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
     # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'loop')
-    jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'slurm', 
-                              slurm_params={'cpus-per-task':'5', 'mem':'20G', }, module_name='icp_jobs')
+    # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=True, engine = 'slurm', 
+    #                           slurm_params={'cpus-per-task':'5', 'mem':'30G', }, module_name='icp_jobs')
 
 if __name__ == "__main__":
     # test_detect_icp('Patient_2024_May_16__9_33_08_427295')

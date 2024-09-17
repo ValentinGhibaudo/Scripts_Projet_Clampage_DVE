@@ -40,3 +40,12 @@ ratio_P1P2_params = {
     'icp_chan_name':icp_chan_name,
     'N_pulse_sliding_window_fig':20,
 }
+
+metrics_params = {
+    'detect_icp_params':detect_icp_params,
+    'psi_params':psi_params,
+    'ratio_P1P2_params':ratio_P1P2_params,
+    'heart_resp_spectral_peaks_params':heart_resp_spectral_peaks_params,
+    'analyzing_window_start_hours_after_clamp':[0,12,24],
+    'analyzing_window_duration_hours':2,
+}
