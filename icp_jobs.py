@@ -260,7 +260,7 @@ def compute_all():
     # jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
     # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'loop')
     jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'slurm', 
-                              slurm_params={'cpus-per-task':'5', 'mem':'10G', }, module_name='icp_jobs')
+                              slurm_params={'cpus-per-task':'5', 'mem':'20G', }, module_name='icp_jobs')
 
 if __name__ == "__main__":
     # test_detect_icp('Patient_2024_May_16__9_33_08_427295')
