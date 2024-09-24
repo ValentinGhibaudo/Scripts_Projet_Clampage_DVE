@@ -12,11 +12,14 @@ from pycns import CnsReader
 import xmltodict
 import scipy
 
-def get_date_clamp_gmt(sub, time_zone = 'Europe/Paris'):
+def get_date_windows_gmt(sub, time_zone = 'Europe/Paris'):
     meta = get_metadata(sub)
-    start_paris = meta['Date_clamp']
-    start_gmt = pd.to_datetime(start_paris).tz_localize(time_zone).tz_convert('GMT')
-    return start_gmt.to_numpy()
+    dates = {}
+    for col in ['debut','fin']:
+        heure_paris = meta[col]
+        heure_gmt = pd.to_datetime(heure_paris).tz_localize(time_zone).tz_convert('GMT')
+        dates[col] = heure_gmt.to_numpy()
+    return dates
 
 def get_piv_chan_name(sub):
     meta = get_metadata(sub)
@@ -781,4 +784,5 @@ def get_crest_line(freqs, Sxx, freq_axis = 0):
 if __name__ == "__main__":
     # print(get_metadata())
     # print(get_patient_ids())
-    print(get_piv_chan_name('Patient_2024_May_8__9_51_19_328502'))
+    # print(get_piv_chan_name('Patient_2024_May_8__9_51_19_328502'))
+    print(get_date_windows_gmt('Patient_2024_May_8__9_51_19_328502'))
