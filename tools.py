@@ -17,8 +17,10 @@ def get_date_windows_gmt(sub, time_zone = 'Europe/Paris'):
     dates = {}
     for col in ['debut','fin']:
         heure_paris = meta[col]
-        heure_gmt = pd.to_datetime(heure_paris).tz_localize(time_zone).tz_convert('GMT')
-        dates[col] = heure_gmt.to_numpy()
+        heure_gmt = pd.to_datetime(heure_paris).tz_localize(time_zone).tz_convert('GMT').to_numpy()
+        if col == 'fin':
+            heure_gmt = heure_gmt - np.timedelta64(1, 'h') # remove 1 hour if 'fin'
+        dates[col] = heure_gmt
     return dates
 
 def get_piv_chan_name(sub):
