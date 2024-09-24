@@ -288,10 +288,9 @@ def metrics(sub, **p):
 
     meta = get_metadata(sub)
     has_dvi = meta['DVI']
-    clamp_date = get_date_windows_gmt(sub)
+    start_dates = get_date_windows_gmt(sub)
     rows = []
-    for d in p['analyzing_window_start_hours_after_clamp']:
-        start_analysis = clamp_date + np.timedelta64(d, 'h')
+    for win_label, start_analysis in start_dates.items():
         stop_analysis = start_analysis + np.timedelta64(p['analyzing_window_duration_hours'], 'h')
 
         local_icp_mmHg = np.nanmedian(icp_mean[(dates_mean > start_analysis) & (dates_mean < stop_analysis)])
@@ -308,11 +307,11 @@ def metrics(sub, **p):
         local_resp_amplitude_mean_mmHg = float(local_spectral_features_da.loc['resp_in_icp'])
         local_ratio_hr_amplitude_mean = float(local_spectral_features_da.loc['ratio'])
 
-        row = [sub, has_dvi, meta['Age'], meta['Sexe'], meta['Duree_sejour'], meta['Duree_DVE'], str(d),
+        row = [sub, has_dvi, meta['Age'], meta['Sexe'], meta['Duree_sejour'], meta['Duree_DVE'], win_label,
                local_icp_mmHg, local_icp_peak_amplitude_mean_mmHg, local_psi_mean, local_p1p2ratio_mean, local_heart_amplitude_mean_mmHg, local_resp_amplitude_mean_mmHg, local_ratio_hr_amplitude_mean
                ]
         rows.append(row)
-    columns = ['Patient','DVI','Age','Sexe','Duree_sejour','Duree_DVE','Heures_Post_Clampage','ICP_mmHg','Pulse_Amplitude_mmHg','PSI','P1P2_ratio','Heart_Amplitude_mmHg','Resp_Amplitude_mmHg','RatioHR']
+    columns = ['Patient','DVI','Age','Sexe','Duree_sejour','Duree_DVE','Période','ICP_mmHg','Pulse_Amplitude_mmHg','PSI','P1P2_ratio','Heart_Amplitude_mmHg','Resp_Amplitude_mmHg','RatioHR']
     metrics = pd.DataFrame(rows, columns = columns)
     return xr.Dataset(metrics)
 
@@ -387,10 +386,10 @@ if __name__ == "__main__":
     # test_detect_icp('Patient_2024_May_16__9_33_08_427295')
     # test_psi('Patient_2024_May_16__9_33_08_427295')
     # test_heart_resp_spectral_peaks('Patient_2024_May_16__9_33_08_427295')
-    test_ratio_P1P2('Patient_2024_May_16__9_33_08_427295')
+    # test_ratio_P1P2('Patient_2024_May_16__9_33_08_427295')
     # test_metrics('Patient_2024_May_16__9_33_08_427295')
     # test_concat_metrics()
 
-    # compute_all()
+    compute_all()
 
     # save_results_and_stats()
