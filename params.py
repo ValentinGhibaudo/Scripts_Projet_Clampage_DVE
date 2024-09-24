@@ -1,4 +1,5 @@
-subs = ['Patient_2024_May_16__9_33_08_427295',
+subs = [
+    'Patient_2024_May_16__9_33_08_427295',
  'Patient_2024_May_13__9_36_06_745131',
  'Patient_2024_May_8__9_51_19_328502',
  'Patient_2024_May_25__16_09_03_881877',
@@ -36,8 +37,7 @@ metrics_params = {
     'psi_params':psi_params,
     'ratio_P1P2_params':ratio_P1P2_params,
     'heart_resp_spectral_peaks_params':heart_resp_spectral_peaks_params,
-    'analyzing_window_start_hours_after_clamp':[0,12,24],
-    'analyzing_window_duration_hours':2,
+    'analyzing_window_duration_hours':1,
 }
 
 concat_metrics_params = {
