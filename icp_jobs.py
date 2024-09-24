@@ -18,7 +18,8 @@ import seaborn as sns
 def detect_icp(sub, **p):
     raw_folder = data_path / sub
     cns_reader = pycns.CnsReader(raw_folder)
-    icp_stream = cns_reader.streams[p['icp_chan_name'][sub]]
+    icp_chan_name = get_piv_chan_name(sub)
+    icp_stream = cns_reader.streams[icp_chan_name]
     srate_icp = icp_stream.sample_rate
     raw_icp, dates = icp_stream.get_data(with_times=True, apply_gain=True)
     icp_features = compute_icp(raw_icp, srate_icp, date_vector = dates, lowcut = p['lowcut'], highcut = p['highcut'], order = p['order'], ftype = p['ftype'], exclude_sweep_ms=p['exclude_sweep_ms'])
@@ -35,7 +36,8 @@ jobtools.register_job(detect_icp_job)
 # PSI 
 def psi(sub, **p):
     cns_reader = pycns.CnsReader(data_path / sub)
-    icp_stream = cns_reader.streams[p['icp_chan_name'][sub]]
+    icp_chan_name = get_piv_chan_name(sub)
+    icp_stream = cns_reader.streams[icp_chan_name]
 
     # Add the plugin directory to the system path, for us it is in the plugin/pulse_detection directory
     plugin_dir = base_folder_neuro_rea / 'ICMPWaveformClassificationPlugin' / 'plugin' / 'pulse_detection'
@@ -106,7 +108,7 @@ jobtools.register_job(psi_job)
 def heart_resp_spectral_peaks(sub, **p):
     
     cns_reader = pycns.CnsReader(data_path / sub)
-    icp_chan_name = p['icp_chan_name'][sub]
+    icp_chan_name = get_piv_chan_name(sub)
     icp_stream = cns_reader.streams[icp_chan_name]
     srate = icp_stream.sample_rate
 
@@ -164,19 +166,18 @@ def heart_resp_spectral_peaks(sub, **p):
         ax.set_ylabel('Frequency (Hz)')
         ax.set_xlim(dates_spectrum[0], dates_spectrum[-1])
 
-        clamp_date = get_date_clamp_gmt(sub)
-        win_size_hours = 2
-        for d, c in zip([0, 12, 24],['r','g','b']):
-            start_span = clamp_date + np.timedelta64(d, 'h')
+        start_dates = get_date_windows_gmt(sub)
+        win_size_hours = 1
+        for win_label, c in zip(start_dates.keys(),['r','g']):
+            start_span = start_dates[win_label]
             stop_span = start_span + np.timedelta64(win_size_hours, 'h')
-            ax.axvspan(start_span, stop_span, color = c, alpha = 0.2, label = f'+{d}h window')
+            ax.axvspan(start_span, stop_span, color = c, alpha = 0.2, label = win_label)
         ax.legend()
 
         fig.savefig(base_folder / 'results' / 'spectrograms_icp_verif' / f'{sub}.png' , dpi = 200, bbox_inches = 'tight')
         plt.close(fig)
 
     ratio_heart_resp = heart_amplitude / resp_amplitude
-    res = {'times_spectrum_s':times_spectrum_s,'heart_in_icp_spectrum':heart_amplitude.values, 'resp_in_icp_spectrum':resp_amplitude.values,'ratio_heart_resp_in_icp_spectrum':ratio_heart_resp.values}
     da_spectral_features = xr.DataArray(data = np.array([heart_amplitude.values, resp_amplitude.values, ratio_heart_resp.values]),
                                         dims = ['feature','date'],
                                         coords = {'feature':['heart_in_icp','resp_in_icp','ratio'], 'date':dates_spectrum}
@@ -199,7 +200,7 @@ def ratio_P1P2(sub, **p):
     meta = get_metadata(sub)
     has_dvi = meta['DVI']
     cns_reader = pycns.CnsReader(data_path / sub)
-    stream_name = p['icp_chan_name'][sub]
+    stream_name = get_piv_chan_name(sub)
     icp_stream = cns_reader.streams[stream_name]
     icp_mean_stream = cns_reader.streams[f'{stream_name}_Mean']
     icp_mean, dates_mean = icp_mean_stream.get_data(with_times = True, apply_gain = True)
@@ -230,7 +231,7 @@ def ratio_P1P2(sub, **p):
         ratio_P1P2_vector = ratio_P1P2_vector[:-1]
 
 
-    clamp_date = get_date_clamp_gmt(sub)
+    start_dates = get_date_windows_gmt(sub)
 
     fig, axs = plt.subplots(nrows = 2, constrained_layout = True)
     fig.suptitle(f'{sub} (DVI = {has_dvi})')
@@ -239,20 +240,22 @@ def ratio_P1P2(sub, **p):
     ax.plot(onsets_dates, ratio_P1P2_vector)
     ax.set_title('P1/P2 ratios')
     ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
-    for d, c in zip([0, 12, 24],['r','g','b']):
-        start_span = clamp_date + np.timedelta64(d, 'h')
+    start_dates = get_date_windows_gmt(sub)
+    win_size_hours = 1
+    for win_label, c in zip(start_dates.keys(),['r','g']):
+        start_span = start_dates[win_label]
         stop_span = start_span + np.timedelta64(win_size_hours, 'h')
-        ax.axvspan(start_span, stop_span, color = c, alpha = 0.2, label = f'+{d}h window')
+        ax.axvspan(start_span, stop_span, color = c, alpha = 0.2, label = win_label)
     ax.legend()
 
     ax = axs[1]
     ax.plot(dates_mean, icp_mean, color = 'k')
     ax.set_title('ICP Mean')
     ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
-    for d, c in zip([0, 12, 24],['r','g','b']):
-        start_span = clamp_date + np.timedelta64(d, 'h')
+    for win_label, c in zip(start_dates.keys(),['r','g']):
+        start_span = start_dates[win_label]
         stop_span = start_span + np.timedelta64(win_size_hours, 'h')
-        ax.axvspan(start_span, stop_span, color = c, alpha = 0.2, label = f'+{d}h window')
+        ax.axvspan(start_span, stop_span, color = c, alpha = 0.2, label = win_label)
     ax.legend()
 
     fig.savefig(base_folder / 'results' / 'ratio_p1p2_verif' / f'{sub}.png', dpi = 200, bbox_inches = 'tight')
@@ -285,7 +288,7 @@ def metrics(sub, **p):
 
     meta = get_metadata(sub)
     has_dvi = meta['DVI']
-    clamp_date = get_date_clamp_gmt(sub)
+    clamp_date = get_date_windows_gmt(sub)
     rows = []
     for d in p['analyzing_window_start_hours_after_clamp']:
         start_analysis = clamp_date + np.timedelta64(d, 'h')
@@ -373,21 +376,21 @@ def compute_all():
     # jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
     # jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
     # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'loop')
-    # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=True, engine = 'slurm', 
-    #                           slurm_params={'cpus-per-task':'5', 'mem':'30G', }, module_name='icp_jobs')
+    jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=True, engine = 'slurm', 
+                              slurm_params={'cpus-per-task':'5', 'mem':'60G', }, module_name='icp_jobs')
 
-    jobtools.compute_job_list(metrics_job, run_keys, force_recompute=True, engine = 'loop')
-    jobtools.compute_job_list(concat_metrics_job, [('global_key',)], force_recompute=True, engine = 'loop')
+    # jobtools.compute_job_list(metrics_job, run_keys, force_recompute=True, engine = 'loop')
+    # jobtools.compute_job_list(concat_metrics_job, [('global_key',)], force_recompute=True, engine = 'loop')
 
 
 if __name__ == "__main__":
     # test_detect_icp('Patient_2024_May_16__9_33_08_427295')
     # test_psi('Patient_2024_May_16__9_33_08_427295')
     # test_heart_resp_spectral_peaks('Patient_2024_May_16__9_33_08_427295')
-    # test_ratio_P1P2('Patient_2024_May_16__9_33_08_427295')
+    test_ratio_P1P2('Patient_2024_May_16__9_33_08_427295')
     # test_metrics('Patient_2024_May_16__9_33_08_427295')
     # test_concat_metrics()
 
-    compute_all()
+    # compute_all()
 
-    save_results_and_stats()
+    # save_results_and_stats()
