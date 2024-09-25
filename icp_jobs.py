@@ -409,6 +409,6 @@ if __name__ == "__main__":
     # test_metrics('Patient_2024_May_16__9_33_08_427295')
     # test_concat_metrics()
 
-    compute_all()
+    # compute_all()
 
-    # save_results_and_stats()
+    save_results_and_stats()
