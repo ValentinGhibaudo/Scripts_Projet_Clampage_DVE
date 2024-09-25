@@ -196,7 +196,6 @@ jobtools.register_job(heart_resp_spectral_peaks_job)
 
 # RATIO P1 P2 
 def ratio_P1P2(sub, **p):
-    win_size_hours = 2
     meta = get_metadata(sub)
     has_dvi = meta['DVI']
     cns_reader = pycns.CnsReader(data_path / sub)
@@ -282,7 +281,7 @@ def metrics(sub, **p):
     spectral_features_da = heart_resp_spectral_peaks_job.get(sub)['spectral_features']
 
     cns_reader = pycns.CnsReader(data_path / sub)
-    stream_name = p['icp_chan_name'][sub]
+    stream_name = get_piv_chan_name(sub)
     icp_mean_stream = cns_reader.streams[f'{stream_name}_Mean']
     icp_mean, dates_mean = icp_mean_stream.get_data(with_times = True, apply_gain = True)
 
@@ -340,7 +339,7 @@ def save_results_and_stats():
     import ghibtools as gh
     metrics = concat_metrics_job.get('global_key').to_dataframe()
     metrics.to_excel(base_folder / 'results' / 'results.xlsx')
-    predictors = ['DVI','Heures_Post_Clampage']
+    predictors = ['DVI','Période']
     outcomes = ['ICP_mmHg','Pulse_Amplitude_mmHg','PSI','P1P2_ratio','Heart_Amplitude_mmHg','Resp_Amplitude_mmHg','RatioHR']
     # nrows = 2
     # ncols = 3
@@ -353,8 +352,9 @@ def save_results_and_stats():
         keep_cols = ['Patient'] + predictors + [outcome]
         metrics_stats = metrics[keep_cols].dropna()
         # print(metrics_stats)
-        gh.auto_stats(df = metrics,
-                      predictor = 'Heures_Post_Clampage',
+        # gh.auto_stats(df = metrics_stats,
+        gh.auto_stats(df = metrics_stats,
+                      predictor = 'Période',
                       outcome = outcome,
                       subject = 'Patient',
                       ax=ax,
@@ -365,8 +365,24 @@ def save_results_and_stats():
         #               hue = 'DVI',
         #               ax=ax
         #               )
-    fig.savefig(base_folder / 'results' / 'stats.png', dpi = 200, bbox_inches = 'tight')
+    fig.savefig(base_folder / 'results' / 'stats_periode.png', dpi = 200, bbox_inches = 'tight')
     plt.close(fig)
+
+    fig, axs = plt.subplots(nrows=nrows, figsize = (6, nrows * 3), constrained_layout = True)
+    for r, outcome in enumerate(outcomes):
+        ax = axs[r]
+        keep_cols = ['Patient'] + predictors + [outcome]
+        metrics_stats = metrics[keep_cols].dropna()
+        sns.boxplot(data = metrics_stats,
+                      x = 'Période',
+                      y = outcome,
+                      hue = 'DVI',
+                      ax=ax
+                      )
+    fig.savefig(base_folder / 'results' / 'figs_sans_stats_interaction.png', dpi = 200, bbox_inches = 'tight')
+    plt.close(fig)
+
+
         
 
 def compute_all():
@@ -375,11 +391,11 @@ def compute_all():
     # jobtools.compute_job_list(psi_job, run_keys, force_recompute=False, engine = 'loop')
     # jobtools.compute_job_list(heart_resp_spectral_peaks_job, run_keys, force_recompute=True, engine = 'loop')
     # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=False, engine = 'loop')
-    jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=True, engine = 'slurm', 
-                              slurm_params={'cpus-per-task':'5', 'mem':'60G', }, module_name='icp_jobs')
+    # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=True, engine = 'slurm', 
+    #                           slurm_params={'cpus-per-task':'5', 'mem':'60G', }, module_name='icp_jobs')
 
     # jobtools.compute_job_list(metrics_job, run_keys, force_recompute=True, engine = 'loop')
-    # jobtools.compute_job_list(concat_metrics_job, [('global_key',)], force_recompute=True, engine = 'loop')
+    jobtools.compute_job_list(concat_metrics_job, [('global_key',)], force_recompute=True, engine = 'loop')
 
 
 if __name__ == "__main__":
@@ -390,6 +406,6 @@ if __name__ == "__main__":
     # test_metrics('Patient_2024_May_16__9_33_08_427295')
     # test_concat_metrics()
 
-    compute_all()
+    # compute_all()
 
-    # save_results_and_stats()
+    save_results_and_stats()
