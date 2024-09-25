@@ -3,6 +3,7 @@ import xarray as xr
 import pandas as pd
 import physio
 import pycns
+import pingouin as pg
 import sys
 import os
 from tools import *
@@ -336,51 +337,53 @@ concat_metrics_job = jobtools.Job(precomputedir, 'concat_metrics', concat_metric
 jobtools.register_job(concat_metrics_job)
 
 def save_results_and_stats():
-    import ghibtools as gh
     metrics = concat_metrics_job.get('global_key').to_dataframe()
-    metrics.to_excel(base_folder / 'results' / 'results.xlsx')
+    metrics.to_excel(base_folder / 'results' / 'res_metrics.xlsx')
     predictors = ['DVI','Période']
     outcomes = ['ICP_mmHg','Pulse_Amplitude_mmHg','PSI','P1P2_ratio','Heart_Amplitude_mmHg','Resp_Amplitude_mmHg','RatioHR']
-    # nrows = 2
-    # ncols = 3
-    # subplots_pos = attribute_subplots(outcomes, nrows, ncols)
+    outcomes = outcomes
+
+    concat_aov = []
+
     nrows = len(outcomes)
-
     fig, axs = plt.subplots(nrows=nrows, figsize = (6, nrows * 3), constrained_layout = True)
     for r, outcome in enumerate(outcomes):
         ax = axs[r]
         keep_cols = ['Patient'] + predictors + [outcome]
         metrics_stats = metrics[keep_cols].dropna()
-        # print(metrics_stats)
-        # gh.auto_stats(df = metrics_stats,
-        gh.auto_stats(df = metrics_stats,
-                      predictor = 'Période',
-                      outcome = outcome,
-                      subject = 'Patient',
-                      ax=ax,
-                      )
-        # sns.pointplot(data = metrics_stats,
-        #               x = 'Heures_Post_Clampage',
-        #               y = outcome,
-        #               hue = 'DVI',
-        #               ax=ax
-        #               )
-    fig.savefig(base_folder / 'results' / 'stats_periode.png', dpi = 200, bbox_inches = 'tight')
-    plt.close(fig)
 
-    fig, axs = plt.subplots(nrows=nrows, figsize = (6, nrows * 3), constrained_layout = True)
-    for r, outcome in enumerate(outcomes):
-        ax = axs[r]
-        keep_cols = ['Patient'] + predictors + [outcome]
-        metrics_stats = metrics[keep_cols].dropna()
+        aov = pg.mixed_anova(dv=outcome, between='DVI',within='Période', subject='Patient', data=metrics_stats)
+        aov['outcome'] = outcome
+        
+        concat_aov.append(aov)
+        
         sns.boxplot(data = metrics_stats,
-                      x = 'Période',
-                      y = outcome,
-                      hue = 'DVI',
-                      ax=ax
-                      )
-    fig.savefig(base_folder / 'results' / 'figs_sans_stats_interaction.png', dpi = 200, bbox_inches = 'tight')
+                        x = 'DVI',
+                        y = outcome,
+                        hue = 'Période',
+                        ax=ax,
+                        palette = sns.color_palette("pastel"),
+                        whis=5
+                        # bw=0.3
+                        )
+        sns.stripplot(data = metrics_stats,
+                        x = 'DVI',
+                        y = outcome,
+                        hue = 'Période',
+                        ax=ax,
+                        dodge = True,
+                        size = 10,
+                        legend = False
+                        )
+        ax.legend(loc = 'upper left', fontsize = 10, ncols = 1)
+    fig.savefig(base_folder / 'results' / 'figs_interaction.png' , dpi = 500, bbox_inches = 'tight')
     plt.close(fig)
+
+    res = pd.concat(concat_aov)
+    res['p-corr'] = pg.multicomp(res['p-unc'], method = 'holm')[1]
+    res['signif-unc'] = res['p-unc'].apply(lambda x:0 if x > 0.05 else 1)
+    res['signif-corr'] = res['p-corr'].apply(lambda x:0 if x > 0.05 else 1)
+    res.to_excel(base_folder / 'results' / 'mixed_anovas.xlsx')
 
 
         
@@ -394,7 +397,7 @@ def compute_all():
     # jobtools.compute_job_list(ratio_P1P2_job, run_keys, force_recompute=True, engine = 'slurm', 
     #                           slurm_params={'cpus-per-task':'5', 'mem':'60G', }, module_name='icp_jobs')
 
-    # jobtools.compute_job_list(metrics_job, run_keys, force_recompute=True, engine = 'loop')
+    jobtools.compute_job_list(metrics_job, run_keys, force_recompute=True, engine = 'loop')
     jobtools.compute_job_list(concat_metrics_job, [('global_key',)], force_recompute=True, engine = 'loop')
 
 
@@ -406,6 +409,6 @@ if __name__ == "__main__":
     # test_metrics('Patient_2024_May_16__9_33_08_427295')
     # test_concat_metrics()
 
-    # compute_all()
+    compute_all()
 
-    save_results_and_stats()
+    # save_results_and_stats()
