@@ -341,14 +341,14 @@ def save_results_and_stats():
     metrics.to_excel(base_folder / 'results' / 'res_metrics.xlsx')
     predictors = ['DVI','Période']
     outcomes = ['ICP_mmHg','Pulse_Amplitude_mmHg','PSI','P1P2_ratio','Heart_Amplitude_mmHg','Resp_Amplitude_mmHg','RatioHR']
-    outcomes = outcomes
+    nrows, ncols = 4, 2
+    poss = attribute_subplots(outcomes, nrows = nrows, ncols = ncols)
 
     concat_aov = []
 
-    nrows = len(outcomes)
-    fig, axs = plt.subplots(nrows=nrows, figsize = (6, nrows * 3), constrained_layout = True)
-    for r, outcome in enumerate(outcomes):
-        ax = axs[r]
+    fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize = (ncols * 3, nrows * 2), constrained_layout = True)
+    for outcome, pos in poss.items():
+        ax = axs[*pos]
         keep_cols = ['Patient'] + predictors + [outcome]
         metrics_stats = metrics[keep_cols].dropna()
 
@@ -363,7 +363,7 @@ def save_results_and_stats():
                         hue = 'Période',
                         ax=ax,
                         palette = sns.color_palette("pastel"),
-                        whis=5
+                        whis=(0,100)
                         # bw=0.3
                         )
         sns.stripplot(data = metrics_stats,
